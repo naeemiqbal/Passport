@@ -1,0 +1,196 @@
+<!DOCTYPE html>
+<html>
+    <head>
+        <title>Realtime Tree</title>
+        <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0"/>        
+        <script
+            src="https://code.jquery.com/jquery-3.1.1.min.js"
+            integrity="sha256-hVVnYaiADRTO2PzUGmuLJr8BLUSjGIZsDYGmIJLv2b8="
+        crossorigin="anonymous"></script>        
+        <style>
+            body            {
+                background-color : beige;
+            }
+            li.leaf {
+                list-style-type: circle;
+            }
+            li.factory {
+                list-style-type: square;
+                width: 120px;
+            }
+            input:invalid {
+                border: 3px solid red;
+            }
+
+            #momenu{
+                position: absolute;
+                background-color: burlywood;
+                color: white;
+                margin: 5px;
+                padding: 5px;
+                border:  activeborder groove thick ;
+                width: 250px;
+            }            
+
+        </style>
+
+        <script type="text/javascript">
+            var REFRESH = 30,
+                    menuon = new Date(),
+                    mainmenuon = false, xhr,
+                    menuon = false,
+                    editNode;
+
+            function showMenu(pNode) {
+                var x, y,
+                        menu = document.getElementById("momenu"),
+                        el = document.getElementsByName(pNode)[0];
+                x = el.offsetLeft + 120 + "px"; //itm.clientX + "px";
+                y = el.offsetHeight - 15 + el.offsetTop + "px";
+                menu.hidden = "";
+                menu.style.left = x;
+                menu.style.top = y;
+                editNode = pNode;
+            }
+
+            function makeMenu(pItems)
+            {
+                var c, itm, ret = "<ul>", itm3 = pItems.split(",");
+                for (c in itm3)
+                {
+                    itm = itm3[c];
+                    if (parseInt(c) % 2 === 1)
+                        ret = ret + itm.replace(/'/g, "") + "</a></li>";
+                    else
+                        ret = ret + "<li><a href=" + itm + ">";
+                }
+                ret = ret + "</ul>";
+                return ret;
+            }
+
+            function hideMenu()
+            {
+                var menu = document.getElementById("momenu");
+                if (!mainmenuon && !menuon)
+                    menu.hidden = "hidden";
+            }
+
+            function updateData() {
+                var el = document.getElementsByName("editnodecount")[0];
+                if (el.validity.valid) {
+                    getData("U", el.value);
+                } else
+                {
+                    alert('Value should be between ' + el.min + " and " + el.max);
+                }
+
+            }
+
+            function getData(pOper) {
+                var qs = "";
+                if (pOper) {
+                    if (pOper === "U") {
+                        qs = "?oper=U&nid=" + editNode + "&nodecount=" + document.getElementsByName("editnodecount")[0].value;
+                    } else if (pOper === "D")
+                        qs = "?oper=D&nid=" + editNode;
+                    document.getElementById("momenu").hidden = "hidden";
+
+                }
+                xhr = new XMLHttpRequest;
+                xhr.onreadystatechange = processData;
+                xhr.open("POST", "DataService" + qs);
+                xhr.send();
+                /* Refresh in 30 seconds */
+                window.setTimeout(getData, REFRESH * 1000);
+            }
+
+            function processData() {
+                var resp, ln, tree;
+                if (xhr.readyState === XMLHttpRequest.DONE) {
+                    if (xhr.status === 200) {
+                        resp = JSON.parse(xhr.responseText);
+                        ln = getLine(resp);
+                        //alert(ln);
+                        tree = document.getElementById("treeroot");
+                        tree.innerHTML = ln;
+
+                    } else {
+                        alert('ERROR: ' + xhr.responseText);
+                    }
+                }
+            }
+            var LEAF = "<li class=\"leaf\" ntype=\"leaf\"  nid=\"",
+                    FACTORY = "<li class=\"factory\" ntype=\"factory\" name=\"";
+            function getLine(pResp) {
+                var ntype = pResp.type, ln;
+                if (ntype === "LEAF")
+                    ln = LEAF + pResp.id + "\">" + pResp.value + "</li>";
+                else if (ntype === "FACTORY")
+                    ln = FACTORY + pResp.id + "\" onclick=\"showMenu(" + pResp.id + ");\">" + pResp.value + "</li>";
+                else
+                    ln = "<li nid=\"" + pResp.id + "\">" + pResp.value + "</li>";
+
+                if (pResp.children) {
+                    ln += "<ul>";
+                    pResp.children.forEach(function (itm) {
+                        ln += getLine(itm);
+                    });
+                    ln += "</ul>";
+                }
+                return ln;
+            }
+
+
+
+            function validateForm() {
+                var min = document.forms["insert"]["start"],
+                        max = document.forms["insert"]["end"];
+                if (max.value <= min.value) {
+                    alert("Maximum should be greater than minimum");
+                    max.min = parseInt(min.value)  +1;
+                    return max.checkValidity();
+                }
+                return this.checkValidity();
+            }
+
+            function init() {
+                var min = document.getElementById("start"),
+                        max = document.getElementById("end");
+                min.onblur = function () {
+                    max.min = min.value;
+                };
+            }
+
+        </script>   
+    </head>
+    <body onload="getData();"   >
+        <div id="treediv"  id="menu"  >
+            <ul id="treeroot" >
+            </ul> 
+        </div>        
+        <div id="momenu" class="momenu" hidden="hidden" onmouseover="menuon = true;" onmouseout="menuon = false;
+                window.setTimeout(hideMenu, 30000);">
+            <form id="editdelete" action="DataService">
+                <label>Number of nodes to add</label><input name="editnodecount" type="number" min="1" max="15" step="1"   pattern="\d+"/><br/>
+                <button type="button"  onclick="updateData('U');">Generate</button><br/>                
+                <button type="button" onclick="getData('D');" >Delete</button><br/>
+                <button type="button" onclick=" document.getElementById('momenu').hidden = 'hidden';" >Cancel</button>
+            </form>
+        </div>
+
+        <button value="Add Factory" onclick=" document.getElementById('fmenu').hidden = '';"  >Add Factory</button>
+        <div id="fmenu" class="fmenu" hidden="hidden">
+            <form id="insert" action="DataService?goper=I" method="post" onsubmit="return validateForm();"  >
+                <label>Name</label> <input name="name" type="text" required="true" /> <br/>
+                <label>Number of nodes to add</label><input name="nodecount" value="3" type="number" min="1" max="15" step="1"   pattern="\d+"  required="true"/><br/>
+                <label>Minimum</label><input name="start" type="number" min="0" required  pattern="\d+"/><br/>
+                <label>Maximum</label><input name="end" type="number" min="0" required pattern="\d+"/><br/>
+               
+                <input type="hidden" name="oper" value="I"/>                
+                <button type="submit" >Add</button><br/>
+                <button type="button" onclick=" document.getElementById('fmenu').hidden = 'hidden';" >Cancel</button>
+            </form>
+        </div>
+    </body>
+</html>
